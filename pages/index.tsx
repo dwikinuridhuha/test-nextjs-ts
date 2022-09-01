@@ -2,12 +2,34 @@ import type { GetServerSideProps, NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
 import styles from "../styles/Home.module.css";
-import { useRouter } from "next/router";
+import fs from "fs";
 import React from "react";
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   let postBodyRequest: any = "";
   let reqMethod: string = "";
+
+  const nameFile = "demo.txt";
+  const urlParams = req.url;
+
+  if (req.method == "GET") {
+    if (fs.existsSync(nameFile)) {
+      const dataRead = new Promise((resolve) => {
+        fs.readFile(nameFile, "utf8", (error, data) => {
+          resolve(data);
+        });
+      });
+
+      postBodyRequest = await dataRead;
+      reqMethod = req.method;
+
+      fs.unlink(nameFile, function (err) {
+        if (err) throw err;
+        // if no error, file has been deleted successfully
+        console.log("File deleted!");
+      });
+    }
+  }
 
   if (req.method == "POST") {
     const dataStream = new Promise((resolve, reject) => {
@@ -16,13 +38,22 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
         body += chunk;
       });
       req.on("end", () => {
-        resolve(decodeURIComponent(body));
+        resolve(body);
       });
     });
     try {
       postBodyRequest = await dataStream;
       reqMethod = req.method;
-      console.log(postBodyRequest);
+      if (urlParams?.includes("ssokey")) {
+        fs.writeFile(
+          nameFile,
+          postBodyRequest,
+          "utf8",
+          (error: any, data: any) => {
+            console.log("Write complete");
+          }
+        );
+      }
     } catch (error) {
       console.error(error);
     }
@@ -31,13 +62,21 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   return { props: { postBodyRequest, reqMethod } };
 };
 
-const Home: NextPage = (props) => {
-  console.log(props);
-  const router = useRouter();
 
-  React.useEffect(() => {
-    router.push("/drop")
-  }, [])
+function paramsToObject(entries) {
+  const result = {}
+  for(const [key, value] of entries) { // each 'entry' is a [key, value] tupple
+    result[key] = value;
+  }
+  return result;
+}
+
+const Home: NextPage = ({ postBodyRequest }) => {
+  const urlParams = new URLSearchParams(postBodyRequest);
+  const entries = urlParams.entries();
+  const params = paramsToObject(entries);
+
+  console.log(params)
 
   return (
     <div className={styles.container}>
